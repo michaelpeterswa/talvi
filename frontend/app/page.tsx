@@ -15,7 +15,11 @@ export default function Home() {
               excepturi exercitationem quasi. In deleniti eaque aut repudiandae
               et a id nisi.
             </p>
-            <button onClick={() => signIn(undefined, { callbackUrl: "/" })}>
+            <button
+              onClick={() => {
+                signIn(undefined, { callbackUrl: "/" });
+              }}
+            >
               sign in
             </button>
             <br />

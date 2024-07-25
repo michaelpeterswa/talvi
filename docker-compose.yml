@@ -21,7 +21,7 @@ services:
       TALVI_COCKROACH_URL: "postgresql://talvi@cockroach:26257/talvi?sslmode=disable"
 
       # openssl rand -base64 32
-      TALVI_JWE_SECRET: ""
+      TALVI_JWE_SECRET: "jFAoVugDcUAjrXNKvZo0v1k8fqOfQA0NkRvLBnJtP8Y="
 
       # openssl enc -aes-128-cbc -k secret -P -pbkdf2
       TALVI_AES_KEY: "0936B5920B3E6FDDFEE77AE131C14385"
@@ -36,8 +36,8 @@ services:
 
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
 
-      GRPC_GO_LOG_VERBOSITY_LEVEL: 99
-      GRPC_GO_LOG_SEVERITY_LEVEL: info
+      # GRPC_GO_LOG_VERBOSITY_LEVEL: 99
+      # GRPC_GO_LOG_SEVERITY_LEVEL: info
 
     depends_on:
       dragonfly:

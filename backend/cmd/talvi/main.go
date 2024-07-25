@@ -17,6 +17,7 @@ import (
 	"github.com/michaelpeterswa/talvi/backend/internal/middleware"
 	"github.com/michaelpeterswa/talvi/backend/internal/movies"
 	"github.com/redis/go-redis/extra/redisotel/v9"
+	"github.com/rs/cors"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -108,7 +109,10 @@ func main() {
 
 	twofactorRouter := accountsRouter.PathPrefix("/2fa").Subrouter()
 	twofactorRouter.HandleFunc("/2fa", accountsHandler.Create2FA).Methods("POST")
+	twofactorRouter.HandleFunc("/2fa", accountsHandler.Get2FA).Methods("GET")
 	twofactorRouter.HandleFunc("/verify", accountsHandler.Verify2FA).Methods("GET")
+	twofactorRouter.HandleFunc("/generate", accountsHandler.Generate2FA).Methods("GET")
+	twofactorRouter.HandleFunc("/validate", accountsHandler.Validate2FA).Methods("GET")
 
 	v1Router.HandleFunc("/movies", moviesHandler.GetMovies)
 
@@ -119,9 +123,12 @@ func main() {
 		middleware.RequestsCounterMiddleware(),
 		// jwt middleware
 		jwtMiddlewareClient.JWTMiddleware,
+		// cors middleware
+		middleware.CORS,
 	)
 
-	err = http.ListenAndServe(":8080", router)
+	corsWrappedRouter := cors.AllowAll().Handler(router)
+	err = http.ListenAndServe(":8080", corsWrappedRouter)
 	if err != nil {
 		panic(err)
 	}

@@ -65,7 +65,7 @@ export const authOptions: AuthOptions = {
   async function getAccountOrCreate(token: JWT) {
     const jwe = await generateRequestJWE(token)
     if (token) {
-      const res = await fetch(`${process.env.BACKEND_HOST_URL}/api/v1/account?email=${token.email}&provider=${token.provider}`, {
+      const res = await fetch(`${process.env.BACKEND_HOST_URL}/api/v1/accounts/account?email=${token.email}&provider=${token.provider}`, {
         method: 'GET',
         headers: { 
           'Content-Type': 'application/json',
@@ -84,7 +84,7 @@ export const authOptions: AuthOptions = {
   };
 
   async function createAccount(token: JWT , jwe: string) {
-    const res = await fetch(`${process.env.BACKEND_HOST_URL}/api/v1/account`, {
+    const res = await fetch(`${process.env.BACKEND_HOST_URL}/api/v1/accounts/account`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

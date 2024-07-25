@@ -9,10 +9,10 @@ import (
 	"image/png"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pquerna/otp/totp"
 	"go.opentelemetry.io/otel"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/michaelpeterswa/talvi/backend/internal/util"
 )
 
@@ -40,8 +40,13 @@ type TwoFactor struct {
 	Enabled           bool      `json:"enabled"`
 }
 
-func (ac *AccountsClient) Create2FA(ctx context.Context, email string, provider string) ([]byte, error) {
-	traceCtx, span := tracer.Start(ctx, "Create2FA")
+type Generated2FA struct {
+	Secret string
+	Image  []byte
+}
+
+func (ac *AccountsClient) Generate2FA(ctx context.Context, email string, provider string) (*Generated2FA, error) {
+	_, span := tracer.Start(ctx, "Generate2FA")
 	defer span.End()
 
 	opts := totp.GenerateOpts{
@@ -64,27 +69,37 @@ func (ac *AccountsClient) Create2FA(ctx context.Context, email string, provider 
 		return nil, fmt.Errorf("error encoding totp key to png: %w", err)
 	}
 
-	ciphertext, err := ac.aesClient.Encrypt(traceCtx, []byte(key.Secret()))
+	return &Generated2FA{
+		Secret: key.Secret(),
+		Image:  pngBuffer.Bytes(),
+	}, nil
+}
+
+func (ac *AccountsClient) Create2FA(ctx context.Context, email string, provider string, secret string) error {
+	traceCtx, span := tracer.Start(ctx, "Create2FA")
+	defer span.End()
+
+	ciphertext, err := ac.aesClient.Encrypt(traceCtx, []byte(secret))
 	if err != nil {
-		return nil, fmt.Errorf("error encrypting totp key: %w", err)
+		return fmt.Errorf("error encrypting totp key: %w", err)
 	}
 	hexCiphertext := hex.EncodeToString(ciphertext)
 
-	_, err = ac.db.Client.Exec(ctx, createTwofactorSQL, util.GenerateEmailProviderHash(email, provider), hexCiphertext, false)
+	_, err = ac.db.Client.Exec(ctx, createTwofactorSQL, util.GenerateEmailProviderHash(email, provider), hexCiphertext, true)
 	pgErr, ok := err.(*pgconn.PgError)
 	if ok {
 		// is duplicate key on email_provider
 		if pgErr.Code == "23505" {
-			return nil, fmt.Errorf("error creating 2fa: %w", err)
+			return fmt.Errorf("error creating 2fa: %w", err)
 		}
 
-		return nil, pgErr
+		return pgErr
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error exec create query: %w", err)
+		return fmt.Errorf("error exec create query: %w", err)
 	}
 
-	return pngBuffer.Bytes(), nil
+	return nil
 }
 
 func (ac *AccountsClient) Get2FA(ctx context.Context, email string, provider string) (*TwoFactor, error) {
@@ -105,6 +120,15 @@ func (ac *AccountsClient) Update2FA(ctx context.Context, email string, provider 
 	}
 
 	return nil
+}
+
+func (ac *AccountsClient) Validate2FASecretCode(ctx context.Context, secret string, code string) (bool, error) {
+	valid := totp.Validate(code, secret)
+	if !valid {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func (ac *AccountsClient) Verify2FA(ctx context.Context, email string, provider string, code string) (bool, error) {
