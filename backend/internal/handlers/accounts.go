@@ -8,7 +8,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/michaelpeterswa/talvi/backend/internal/accounts"
-	"github.com/michaelpeterswa/talvi/backend/internal/middleware"
 	"go.uber.org/zap"
 )
 
@@ -46,23 +45,6 @@ func (ah *AccountsHandler) CreateAccount(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	jwt, err := getJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != account.Email || jwt.Provider != account.Provider {
-		ah.logger.Info("error creating account: email and provider do not match jwt",
-			zap.String("account_email", account.Email),
-			zap.String("account_provider", account.Provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
 	exists, err := ah.accountsClient.CreateAccount(r.Context(), account.Name, account.Role, account.Email, account.Provider)
 	if err != nil {
 		ah.logger.Info("error creating account", zap.Error(err))
@@ -81,23 +63,6 @@ func (ah *AccountsHandler) CreateAccount(w http.ResponseWriter, r *http.Request)
 func (ah *AccountsHandler) GetAccount(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	provider := r.URL.Query().Get("provider")
-
-	jwt, err := middleware.GetJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != email || jwt.Provider != provider {
-		ah.logger.Info("error creating account: email and provider do not match jwt",
-			zap.String("account_email", email),
-			zap.String("account_provider", provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
 
 	account, err := ah.accountsClient.GetAccount(r.Context(), email, provider)
 	if err != nil {
@@ -131,23 +96,6 @@ func (ah *AccountsHandler) Generate2FA(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	provider := r.URL.Query().Get("provider")
 
-	jwt, err := middleware.GetJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != email || jwt.Provider != provider {
-		ah.logger.Info("error creating 2fa: email and provider do not match jwt",
-			zap.String("2fa_email", email),
-			zap.String("2fa_provider", provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
 	generated2FA, err := ah.accountsClient.Generate2FA(r.Context(), email, provider)
 	if err != nil {
 		ah.logger.Info("error creating 2fa", zap.Error(err))
@@ -175,23 +123,6 @@ type Get2FAResponse struct {
 func (ah *AccountsHandler) Get2FA(w http.ResponseWriter, r *http.Request) {
 	email := r.URL.Query().Get("email")
 	provider := r.URL.Query().Get("provider")
-
-	jwt, err := middleware.GetJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != email || jwt.Provider != provider {
-		ah.logger.Info("error getting 2fa: email and provider do not match jwt",
-			zap.String("2fa_email", email),
-			zap.String("2fa_provider", provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
 
 	twoFactor, err := ah.accountsClient.Get2FA(r.Context(), email, provider)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -251,23 +182,6 @@ func (ah *AccountsHandler) Create2FA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jwt, err := middleware.GetJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != email || jwt.Provider != provider {
-		ah.logger.Info("error creating 2fa: email and provider do not match jwt",
-			zap.String("2fa_email", email),
-			zap.String("2fa_provider", provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
 	err = ah.accountsClient.Create2FA(r.Context(), email, provider, create2FABody.Secret)
 	if err != nil {
 		ah.logger.Info("error creating 2fa", zap.Error(err))
@@ -276,6 +190,20 @@ func (ah *AccountsHandler) Create2FA(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
+}
+
+func (ah *AccountsHandler) Delete2FA(w http.ResponseWriter, r *http.Request) {
+	email := r.URL.Query().Get("email")
+	provider := r.URL.Query().Get("provider")
+
+	err := ah.accountsClient.Delete2FA(r.Context(), email, provider)
+	if err != nil {
+		ah.logger.Info("error deleting 2fa", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 type Verify2FAResponse struct {
@@ -287,27 +215,13 @@ func (ah *AccountsHandler) Verify2FA(w http.ResponseWriter, r *http.Request) {
 	provider := r.URL.Query().Get("provider")
 	code := r.URL.Query().Get("code")
 
-	jwt, err := middleware.GetJWTFromRequestContext(r)
-	if err != nil {
-		ah.logger.Info("error getting jwt from request context", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if jwt.Email != email || jwt.Provider != provider {
-		ah.logger.Info("error verifying 2fa: email and provider do not match jwt",
-			zap.String("2fa_email", email),
-			zap.String("2fa_provider", provider),
-			zap.String("jwt_email", jwt.Email),
-			zap.String("jwt_provider", jwt.Provider))
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
-
 	verified, err := ah.accountsClient.Verify2FA(r.Context(), email, provider, code)
-	if err != nil {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		ah.logger.Info("error verifying 2fa", zap.Error(err))
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if errors.Is(err, pgx.ErrNoRows) {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 

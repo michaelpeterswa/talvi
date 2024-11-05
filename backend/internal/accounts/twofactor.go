@@ -26,8 +26,8 @@ var createTwofactorSQL string
 //go:embed queries/twofactor/get_twofactor.pgsql
 var getTwofactorSQL string
 
-// //go:embed queries/twofactor/delete_twofactor.pgsql
-// var deleteTwofactorSQL string
+//go:embed queries/twofactor/delete_twofactor.pgsql
+var deleteTwofactorSQL string
 
 //go:embed queries/twofactor/update_twofactor.pgsql
 var updateTwofactorSQL string
@@ -117,6 +117,17 @@ func (ac *AccountsClient) Update2FA(ctx context.Context, email string, provider 
 	_, err := ac.db.Client.Exec(ctx, updateTwofactorSQL, util.GenerateEmailProviderHash(email, provider), enabled)
 	if err != nil {
 		return fmt.Errorf("error exec update query: %w", err)
+	}
+
+	return nil
+}
+
+func (ac *AccountsClient) Delete2FA(ctx context.Context, email string, provider string) error {
+	fmt.Println("deleteTwofactorSQL", deleteTwofactorSQL)
+
+	_, err := ac.db.Client.Exec(ctx, deleteTwofactorSQL, util.GenerateEmailProviderHash(email, provider))
+	if err != nil {
+		return fmt.Errorf("error exec delete query: %w", err)
 	}
 
 	return nil

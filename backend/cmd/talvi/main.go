@@ -93,6 +93,8 @@ func main() {
 		logger.Fatal("error initializing jwt middleware client", zap.Error(err))
 	}
 
+	accountAuthorizationMiddleware := middleware.NewAccountAuthorizationMiddleware(logger)
+
 	accountsClient := accounts.NewAccountsClient(dragonflyClient, cockroachClient, aesClient)
 	accountsHandler := handlers.NewAccountsHandler(logger, accountsClient)
 
@@ -110,6 +112,7 @@ func main() {
 	twofactorRouter := accountsRouter.PathPrefix("/2fa").Subrouter()
 	twofactorRouter.HandleFunc("/2fa", accountsHandler.Create2FA).Methods("POST")
 	twofactorRouter.HandleFunc("/2fa", accountsHandler.Get2FA).Methods("GET")
+	twofactorRouter.HandleFunc("/2fa", accountsHandler.Delete2FA).Methods("DELETE")
 	twofactorRouter.HandleFunc("/verify", accountsHandler.Verify2FA).Methods("GET")
 	twofactorRouter.HandleFunc("/generate", accountsHandler.Generate2FA).Methods("GET")
 	twofactorRouter.HandleFunc("/validate", accountsHandler.Validate2FA).Methods("GET")
@@ -123,6 +126,8 @@ func main() {
 		middleware.RequestsCounterMiddleware(),
 		// jwt middleware
 		jwtMiddlewareClient.JWTMiddleware,
+		// account authorization middleware
+		accountAuthorizationMiddleware.IsAccountAuthorized,
 		// cors middleware
 		middleware.CORS,
 	)

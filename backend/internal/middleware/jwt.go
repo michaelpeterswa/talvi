@@ -53,9 +53,12 @@ func (jwtmc *JWTMiddlewareClient) JWTMiddleware(next http.Handler) http.Handler 
 	jwtmc.logger.Debug("request received")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			jwtmc.logger.Info("no authorization header found")
+			next.ServeHTTP(w, r)
+			return
+		}
 		jwe := bearerTokenRegex.FindStringSubmatch(authHeader)[1]
-
-		fmt.Println(jwe)
 
 		object, err := jose.ParseEncrypted(jwe)
 		if err != nil {
