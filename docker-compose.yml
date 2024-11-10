@@ -1,0 +1,121 @@
+---
+version: "3.3"
+
+services:
+  backend:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    # image: ghcr.io/michaelpeterswa/talvi-backend
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./output:/etc/talvi/output
+    environment:
+      TALVI_LOG_LEVEL: "debug"
+      TALVI_DRAGONFLY_HOST: "dragonfly"
+      TALVI_DRAGONFLY_PORT: "6379"
+      TALVI_DRAGONFLY_AUTH: ""
+      # yamllint disable-line rule:line-length
+      TALVI_COCKROACH_URL: "postgresql://talvi@cockroach:26257/talvi?sslmode=disable"
+
+      # openssl rand -base64 32
+      TALVI_JWE_SECRET: "jFAoVugDcUAjrXNKvZo0v1k8fqOfQA0NkRvLBnJtP8Y="
+
+      # openssl enc -aes-128-cbc -k secret -P -pbkdf2
+      TALVI_AES_KEY: "0936B5920B3E6FDDFEE77AE131C14385"
+
+      TALVI_METRICS_ENABLED: "true"
+      TALVI_METRICS_PORT: "8081"
+
+      TALVI_TRACING_ENABLED: "true"
+      TALVI_TRACING_RATIO: "1.0"
+      TALVI_SERVICE_NAME: "talvi-backend"
+      TALVI_SERVICE_VERSION: "0.0.1"
+
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo:4317"
+
+      # GRPC_GO_LOG_VERBOSITY_LEVEL: 99
+      # GRPC_GO_LOG_SEVERITY_LEVEL: info
+
+    depends_on:
+      dragonfly:
+        condition: service_started
+      seedcockroachdb:
+        condition: service_completed_successfully
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    # image: ghcr.io/michaelpeterswa/talvi-frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env.local
+    depends_on:
+      backend:
+        condition: service_started
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly
+    ulimits:
+      memlock: -1
+    ports:
+      - "6379:6379"
+  cockroach:
+    image: cockroachdb/cockroach
+    environment:
+      COCKROACH_DATABASE: "talvi"
+      COCKROACH_USER: "talvi"
+      # COCKROACH_PASSWORD: "password" # password not supported in insecure mode
+    command: start-single-node --insecure
+    restart: "no"
+    ports:
+      - "26257:26257"
+      - "8083:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health?ready=1"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+  seedcockroachdb:
+    image: migrate/migrate
+    volumes:
+      - ./docker/cockroach/migrations:/migrations
+    entrypoint: >
+      /bin/sh -c 'sleep 5 && migrate -path=/migrations/ -database
+      "cockroachdb://talvi@cockroach:26257/talvi?sslmode=disable" up'
+    depends_on:
+      cockroach:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  tempo:
+    image: grafana/tempo:latest
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./docker/tempo/tempo.yml:/etc/tempo.yaml
+      - /tmp/tempo-data:/tmp/tempo
+    ports:
+      - "4317:4317" # otlp grpc
+      - "4318:4318" # otlp http
+
+  grafana:
+    image: grafana/grafana
+    volumes:
+      - ./docker/grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./docker/grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/main.yaml
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    ports:
+      - "3001:3000"
