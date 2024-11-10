@@ -1,6 +1,6 @@
 module github.com/michaelpeterswa/talvi/backend
 
-go 1.22.0
+go 1.23.0
 
 require (
 	github.com/alpineworks/ootel v1.0.0
