@@ -1,7 +1,7 @@
 ---
 name: Upload Image
 
-on:  # yamllint disable-line rule:truthy
+on: # yamllint disable-line rule:truthy
   release:
     types:
       - created
@@ -54,7 +54,7 @@ jobs:
           provenance: true
           context: "{{defaultContext}}:frontend"
           file: Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ steps.meta-frontend.outputs.version }}
           tags: ${{ steps.meta-frontend.outputs.tags }}
@@ -67,7 +67,7 @@ jobs:
           provenance: true
           context: "{{defaultContext}}:backend"
           file: Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ steps.meta-backend.outputs.version }}
           tags: ${{ steps.meta-backend.outputs.tags }}
