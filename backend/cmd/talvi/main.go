@@ -55,7 +55,9 @@ func main() {
 	if err != nil {
 		logger.Fatal("error initializing ootel client", zap.Error(err))
 	}
-	defer shutdown(ctx)
+	defer func() {
+		_ = shutdown(ctx)
+	}()
 
 	logger.Info("ootel initialized")
 

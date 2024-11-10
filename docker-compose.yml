@@ -44,18 +44,18 @@ services:
         condition: service_started
       seedcockroachdb:
         condition: service_completed_successfully
-  # frontend:
-  #   build:
-  #     context: frontend
-  #     dockerfile: Dockerfile
-  #   # image: ghcr.io/michaelpeterswa/talvi-frontend
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     BACKEND_HOST_URL: http://backend:8080
-  #   depends_on:
-  #     backend:
-  #       condition: service_started
+  frontend:
+    build:
+      context: frontend
+      dockerfile: Dockerfile
+    # image: ghcr.io/michaelpeterswa/talvi-frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env.local
+    depends_on:
+      backend:
+        condition: service_started
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     ulimits:
